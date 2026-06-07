@@ -1,0 +1,12 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+bench/data/
+*.pyc
+.venv/
+
+# Internal handoff / strategy docs — kept local, not pushed.
+AGENT_HANDOFF.md
+SETUP_AND_PUSH.md

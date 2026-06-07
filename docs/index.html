@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenExtract — self-hosted AWS Textract replacement</title>
+<style>
+  :root{--bg:#0d1117;--card:#161b22;--line:#30363d;--fg:#e6edf3;--mut:#9198a1;--acc:#3fb950;--accent2:#58a6ff}
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+  .wrap{max-width:780px;margin:0 auto;padding:48px 20px}
+  h1{font-size:34px;margin:0 0 6px;letter-spacing:-.5px}
+  .sub{color:var(--mut);font-size:18px;margin:0 0 28px}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto;font-size:14px}
+  .hl{color:var(--acc)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin:22px 0}
+  label{display:block;color:var(--mut);font-size:13px;margin:14px 0 6px}
+  input,select{width:100%;padding:10px 12px;background:#0d1117;border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:15px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:200px}
+  .out{display:flex;gap:16px;margin-top:22px;flex-wrap:wrap}
+  .stat{flex:1;min-width:150px;background:#0d1117;border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center}
+  .stat .n{font-size:26px;font-weight:700}
+  .stat .l{color:var(--mut);font-size:12px;margin-top:4px}
+  .save{color:var(--acc)}
+  a.btn{display:inline-block;background:var(--acc);color:#04130a;text-decoration:none;font-weight:600;padding:10px 18px;border-radius:8px;margin-top:8px}
+  .foot{color:var(--mut);font-size:13px;margin-top:34px}
+  .foot a{color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>OpenExtract</h1>
+  <p class="sub">Self-hosted, drop-in replacement for AWS Textract. Change one line — keep your data.</p>
+
+<pre>client = boto3.client("textract",
+    endpoint_url=<span class="hl">"http://localhost:8080"</span>,  # the only change
+    region_name="us-east-1", aws_access_key_id="x", aws_secret_access_key="x")
+client.detect_document_text(Document={"Bytes": img})   # same boto3 code</pre>
+
+  <div class="card">
+    <strong>What does Textract cost you — and what would you save?</strong>
+    <div class="row">
+      <div>
+        <label>Pages per month</label>
+        <input id="pages" type="number" value="200000" min="0">
+      </div>
+      <div>
+        <label>Extraction type</label>
+        <select id="kind">
+          <option value="1.5">Plain text (DetectDocumentText) — $1.50/1k</option>
+          <option value="65" selected>Forms + Tables (AnalyzeDocument) — $65/1k</option>
+        </select>
+      </div>
+    </div>
+    <div class="out">
+      <div class="stat"><div class="n" id="aws">–</div><div class="l">AWS Textract / mo</div></div>
+      <div class="stat"><div class="n" id="oe">–</div><div class="l">OpenExtract (local) / mo*</div></div>
+      <div class="stat"><div class="n save" id="save">–</div><div class="l">You keep / year</div></div>
+    </div>
+    <a class="btn" href="https://github.com/sarcascoder/openextract">Get it on GitHub →</a>
+  </div>
+
+  <p class="foot">
+    * Local cost ≈ $0.09 / 1,000 pages amortized on a single GPU; CPU/Tesseract baseline is free.
+    Apache-2.0 · no telemetry · data never leaves your machine.
+    Pricing from published mid-2026 AWS rates; your mileage varies — run the
+    <a href="https://github.com/sarcascoder/openextract/tree/main/bench">benchmark</a> on your own pages.
+  </p>
+</div>
+<script>
+  const fmt = n => "$" + Math.round(n).toLocaleString();
+  function calc(){
+    const pages = Math.max(0, +document.getElementById('pages').value || 0);
+    const rate = +document.getElementById('kind').value;       // $/1k pages
+    const aws = pages/1000 * rate;
+    const oe = pages/1000 * 0.09;
+    document.getElementById('aws').textContent = fmt(aws);
+    document.getElementById('oe').textContent = fmt(oe);
+    document.getElementById('save').textContent = fmt((aws-oe)*12);
+  }
+  document.getElementById('pages').addEventListener('input', calc);
+  document.getElementById('kind').addEventListener('change', calc);
+  calc();
+</script>
+</body>
+</html>

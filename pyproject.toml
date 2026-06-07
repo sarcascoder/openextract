@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openextract"
+version = "0.1.0"
+description = "Self-hosted, API-compatible drop-in replacement for AWS Textract. Runs a local/quantized VLM. ~16-40x cheaper, data stays on your machine."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "sarcascoder" }]
+keywords = ["ocr", "textract", "document-ai", "self-hosted", "local-llm", "vlm"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Text Processing",
+]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+]
+
+[project.optional-dependencies]
+tesseract = ["pytesseract>=0.3.10", "pillow>=10"]
+pdf = ["pymupdf>=1.24"]
+dev = ["pytest>=8", "httpx>=0.27", "boto3>=1.34", "pymupdf>=1.24"]
+
+[project.scripts]
+openextract = "openextract.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["openextract*"]
