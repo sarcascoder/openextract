@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from fastapi.testclient import TestClient
 
-from openextract import app as app_module
+from openextract import kernel
 from openextract.app import app
 
 client = TestClient(app)
@@ -23,7 +23,7 @@ def test_textract_s3object_fetches_and_extracts(monkeypatch):
         captured.update(s3)
         return b"bytes-from-s3"
 
-    monkeypatch.setattr(app_module, "_fetch_s3", fake_fetch)
+    monkeypatch.setattr(kernel, "fetch_s3", fake_fetch)
 
     r = client.post(
         "/",

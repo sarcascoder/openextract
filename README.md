@@ -109,35 +109,31 @@ Verified VLM run (Qwen3.6-35B-A3B Q8 on a RunPod pod): **100% line + 100% field 
 the same 3 synthetic pages. Numbers are honest about being a clean-synthetic dataset — see
 [`bench/RESULTS.md`](bench/RESULTS.md) for caveats and how to reproduce on your own labeled pages.
 
-## Pro: calibrated confidence + human review
+## Pro: calibrated confidence + human review (paid)
 
 Cloud OCR hands you an overconfident number per field. The Pro layer makes extraction
 *trustworthy enough to auto-accept*: it routes only low-confidence fields to a human and
 auto-accepts the rest, with optional self-consistency (run a stochastic VLM N times; a
-field's confidence is how often the runs agree).
+field's confidence is how often the runs agree). A local `/review` HTML UI lets a human
+correct items in the queue; corrections feed back as few-shot examples for the model.
+
+Pro is a closed-source plugin (`openextract-pro`) that mounts itself on the OSS server
+when installed and licensed — no fork, no patch, no behavior change to the OSS core.
 
 ```bash
+pip install openextract                      # OSS core (this repo)
+pip install openextract-pro                  # closed-source Pro extension
+export OPENEXTRACT_LICENSE_KEY=<your-key>    # emailed after purchase
+openextract --backend vlm
+curl localhost:8080/health                   # {"pro": true, ...}
 curl -s localhost:8080/v1/extract-with-confidence \
   -d '{"Document":{"Bytes":"<base64>"},"threshold":90,"samples":5}'
-```
-```json
-{
-  "threshold": 90, "samples": 5, "auto_accept_rate": 0.67,
-  "fields": [
-    {"key": "Invoice Number", "value": "INV-1042", "confidence": 99.0, "status": "auto_accept", "agreement": 1.0},
-    {"key": "Total Due", "value": "$1,250.00", "confidence": 74.2, "status": "review", "agreement": 0.8}
-  ],
-  "review_queue": [ {"key": "Total Due", "...": "..."} ]
-}
+# open http://localhost:8080/review for the review UI
 ```
 
-Corrections become few-shot examples you feed back to the model (`record_correction`), so
-accuracy improves over time. This is the basis of the paid tier.
-
-A minimal local review UI is bundled: every call to `/v1/extract-with-confidence` persists a
-report (pass `"persist": false` to opt out); visit `http://localhost:8080/review` to see
-pending queues, correct fields in-line, and feed corrections back to the model. Single-binary,
-single-node, no extra services to run.
+Without a license, the OSS server runs as if Pro weren't there — Pro endpoints stay 404.
+The Pro plugin contract (`openextract.kernel`, `openextract.pro_loader`) is documented in
+the code; only the Pro implementation is closed-source.
 
 ## Roadmap
 
