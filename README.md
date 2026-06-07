@@ -103,7 +103,11 @@ forms+tables accuracy is within a few points of Textract, the thesis holds. **Ru
 Reproduce the included sample set with `python bench/gen_samples.py`. Verified CPU baseline
 (Tesseract backend, no GPU): **100% line accuracy, 0.17s/page, ~722× cheaper than Textract on
 forms+tables** — but **0% field accuracy**, since Tesseract has no forms understanding. That gap
-is exactly why the `vlm` backend exists; see [`bench/RESULTS.md`](bench/RESULTS.md).
+is exactly why the `vlm` backend exists.
+
+Verified VLM run (Qwen3.6-35B-A3B Q8 on a RunPod pod): **100% line + 100% field accuracy** on
+the same 3 synthetic pages. Numbers are honest about being a clean-synthetic dataset — see
+[`bench/RESULTS.md`](bench/RESULTS.md) for caveats and how to reproduce on your own labeled pages.
 
 ## Pro: calibrated confidence + human review
 

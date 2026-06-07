@@ -6,6 +6,7 @@ import os
 import urllib.request
 
 from .base import Backend
+from .. import __version__
 from ..textract_schema import Box, KeyValue, Line, Page, Table, Word
 
 # Prompt the VLM to emit a strict JSON layout we can map to Textract blocks.
@@ -62,6 +63,8 @@ class VLMBackend(Backend):
             f"{self.base_url}/chat/completions",
             data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json",
+                     # Some hosted proxies (e.g. RunPod) reject the default urllib UA.
+                     "User-Agent": f"openextract/{__version__}",
                      **({"Authorization": f"Bearer {self.api_key}"} if self.api_key else {})},
         )
         with urllib.request.urlopen(req, timeout=120) as resp:
