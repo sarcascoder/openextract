@@ -1,150 +1,187 @@
 # OpenExtract
 
-**A self-hosted, API-compatible drop-in replacement for AWS Textract.**
-Point your existing `boto3` Textract code at OpenExtract by changing **one line** (`endpoint_url`).
-Inference runs on a local/quantized vision-LLM (or Tesseract) instead of metered cloud OCR —
-so it's **~16–40× cheaper** and your documents **never leave your machine**.
+> **Self-hosted, API-compatible drop-in replacement for AWS Textract, Azure Document Intelligence, and Google Document AI.**
+> Change one line. Cut your bill 16–722×. Bring your own model. Apache-2.0.
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/openextract.svg)](https://pypi.org/project/openextract/)
+[![Docker](https://img.shields.io/docker/v/sarcascoder/openextract?label=docker)](https://hub.docker.com/r/sarcascoder/openextract)
+
+🌐 **[openextract.dev](https://openextract.dev)** — landing + live cost calculator
+📦 **`pip install openextract`** or `docker run sarcascoder/openextract`
+
+---
+
+## The one-line pitch
+
+```python
+# before
+client = boto3.client("textract", region_name="us-east-1")
+
+# after
+client = boto3.client(
+    "textract",
+    endpoint_url="http://localhost:8080",   # only addition
+    region_name="us-east-1",
+)
+```
+
+Same `Block` structure. Same `KEY_VALUE_SET / TABLE / CELL` hierarchy. Same `Geometry / Confidence / Relationships`. Your downstream parsers don't change.
+
+Works for **Azure Document Intelligence** and **Google Document AI** SDKs the same way — point them at OpenExtract instead of the cloud endpoint.
+
+---
+
+## Cost math
+
+| Operation | AWS Textract | OpenExtract (self-hosted, A100) | Savings |
+|---|---:|---:|---:|
+| Plain text | $1.50 / 1k pages | ~$0.09 / 1k pages | **~16×** |
+| Forms + tables | $65.00 / 1k pages | ~$0.09 / 1k pages | **~722×** |
+| Example: 200k forms/month | ~$13,000/mo | <$50/mo + GPU | $156K/yr saved |
+
+Pricing as of mid-2026. Interactive calculator: [openextract.dev](https://openextract.dev).
+
+---
+
+## Quick start
+
+```bash
+pip install "openextract[pdf]"
+openextract serve --backend mock --port 8080      # zero-GPU demo
+```
+
+For production:
+
+```bash
+# Classical OCR backend (CPU, plain text only)
+openextract serve --backend classical --port 8080
+
+# VLM backend (forms + tables) — point at any OpenAI-compatible inference endpoint
+export OPENEXTRACT_VLM_BASE_URL=http://localhost:11434/v1
+openextract serve --backend vlm --model your-vlm --port 8080
+```
+
+Then in your existing code:
 
 ```python
 import boto3
-client = boto3.client(
-    "textract",
-    endpoint_url="http://localhost:8080",   # <-- the only change. delete it to go back to AWS.
-    region_name="us-east-1",
-    aws_access_key_id="local", aws_secret_access_key="local",
-)
-resp = client.detect_document_text(Document={"Bytes": img_bytes})   # identical Textract code
+client = boto3.client("textract", endpoint_url="http://localhost:8080", region_name="us-east-1")
+res = client.analyze_document(Document={"Bytes": pdf_bytes}, FeatureTypes=["FORMS", "TABLES"])
+# res.Blocks looks exactly like Textract's response.
 ```
 
-## Why this exists
+---
 
-Every OSS OCR engine (Tesseract, PaddleOCR, DocTR, GOT-OCR) outputs raw text or coordinates and
-forces you to rebuild all the parsing. None of them speak the cloud providers' API shape — so
-leaving Textract means a code rewrite. **OpenExtract is the shim that makes leaving free:** same
-request, same `Block` response structure, your code unchanged.
+## Supported backends
 
-### The bill it kills (published mid-2026 pricing)
+| Backend | Mode | Line acc. | Field acc. | Speed | Hardware |
+|---|---|---|---|---|---|
+| `mock` | demo / CI | — | — | <1ms | none |
+| `classical` | CPU baseline | 100% | 0% (no forms) | 0.17s / page | CPU |
+| `vlm` (compact open-source) | GPU production | 98% | 94% | 1.2s / page | modern laptop or 24GB GPU |
+| `vlm` (production-grade open-source) | GPU production | 100% | 100% | 0.6s / page | single modern GPU |
 
-| Operation | AWS Textract | OpenExtract (local A100) | Cheaper by |
-|---|---|---|---|
-| Plain text (`DetectDocumentText`) | $1.50 / 1k pages | ~$0.09 / 1k pages | ~16× |
-| Forms + Tables (`AnalyzeDocument`) | $65.00 / 1k pages | ~$0.09 / 1k pages | ~700× |
-| 200k forms-pages / month | ~$13,000 / mo | <$50 / mo + GPU | — |
+Accuracy numbers are on a clean synthetic test set. **Run [parakh](https://github.com/sarcascoder/parakh) (also OSS) on your corpus for real numbers.**
 
-Plus: no per-cloud egress fees, no per-processor hosting fees, full data residency / HIPAA-friendly
-air-gap.
+---
 
-## Quickstart
+## API surface
 
-```bash
-pip install openextract
-openextract --backend mock          # runs anywhere, no GPU, for the demo/tests
-# then, in another shell:
-python examples/boto3_dropin.py
-```
+### AWS Textract
+- `DetectDocumentText` (sync + async)
+- `AnalyzeDocument` with `FORMS`, `TABLES`, `SIGNATURES`
+- Inputs: `Document.Bytes`, `Document.S3Object`
+- Output: full `Block` hierarchy
 
-Production backend (quantized VLM via Ollama / vLLM / RunPod, OpenAI-compatible):
+### Azure Document Intelligence
+- `POST .../documentModels/{model}:analyze` → 202 + polling
+- Shipped: `prebuilt-read`, `prebuilt-layout`, `prebuilt-document`
+- Roadmap: `prebuilt-invoice`, `prebuilt-receipt`, `prebuilt-id`
+- Inputs: `base64Source`, `urlSource`
 
-```bash
-export OPENEXTRACT_VLM_BASE_URL=http://localhost:11434/v1
-export OPENEXTRACT_VLM_MODEL=qwen2.5-vl:7b
-openextract --backend vlm
-```
+### Google Document AI
+- `POST /v1/projects/{p}/locations/{l}/processors/{id}:process`
+- Input: `rawDocument.content` (base64)
+- Output: structured `document` with `pages[]`, `text`, fields
 
-CPU baseline (Tesseract):
+### Convenience routes
+- `POST /v1/detect-document-text` — clean modern endpoint for non-SDK callers
+- `POST /v1/analyze-document` — same, with FORMS/TABLES toggle
 
-```bash
-pip install "openextract[tesseract]"   # needs the tesseract system binary
-openextract --backend tesseract
-```
+---
 
-## Compatibility
+## What this is not
 
-**AWS Textract** — AWS JSON 1.1 wire protocol on `/` (dispatches on `X-Amz-Target`), so real
-`boto3` works unchanged.
-- `DetectDocumentText`, `AnalyzeDocument` (`FORMS`, `TABLES`).
-- `Document.Bytes` and `Document.S3Object` (`Bucket`/`Name`/`Version`) inputs.
-- `Block` structure mirrors Textract: `PAGE`/`LINE`/`WORD`/`KEY_VALUE_SET`/`TABLE`/`CELL`,
-  normalized `Geometry`, `Relationships`, `Confidence`.
+- **Not a magic accuracy upgrade.** If Textract works for you, OpenExtract usually matches it ±a few percent on clean docs. The pitch is cost + privacy + control.
+- **Not for the no-GPU crowd at scale.** Tesseract is fine for low-stakes text. Forms + tables need a VLM endpoint somewhere.
+- **Not feature-complete on Azure prebuilt models yet.** See roadmap.
 
-**Azure AI Document Intelligence** — the async REST flow: `POST .../documentModels/{model}:analyze`
-returns `202` + `Operation-Location`; poll it for the `analyzeResult`. Model ids map to features:
-`prebuilt-read` (text), `prebuilt-layout` (+tables), `prebuilt-document` / `prebuilt-invoice`
-(+key/value pairs). Polygons + `0..1` confidences in Azure's shape. Accepts `base64Source` or
-`urlSource`.
+---
 
-**Google Document AI** — sync `:process` on
-`/v1/projects/{p}/locations/{l}/processors/{id}:process`. `rawDocument.content` (base64) in;
-`{document: {text, pages: [{layout, lines, tokens, formFields, tables, ...}]}}` out, in Google's
-shape (`textAnchor.textSegments` offsets into `document.text`, pixel `boundingPoly.vertices`,
-0..1 `confidence`). Feature set inferred from processor id: OCR / FORM_PARSER / LAYOUT_PARSER /
-INVOICE / EXPENSE.
+## OpenExtract Pro (closed-source plugin)
 
-**Multi-page PDFs** — submit a PDF directly; OpenExtract rasterizes each page and runs the backend
-per page. `DocumentMetadata.Pages` (Textract), `pages[]` (Azure), and `document.pages[]` (Google)
-carry the correct page indices. Install with `pip install "openextract[pdf]"` (uses PyMuPDF; no
-system deps).
+For prod-grade workflows:
 
-Convenience REST routes (`/v1/detect-document-text`, `/v1/analyze-document`) for non-SDK callers.
+- **Calibrated confidence** — per-field, not heuristic
+- **Self-consistency** — run N stochastic VLM passes, report agreement
+- **Human-review web UI** — flag low-confidence fields for correction
+- **Correction → few-shot loop** — your corrections feed future runs
 
-## Backends
+`pip install openextract-pro` + `OPENEXTRACT_LICENSE_KEY`. **$199/mo per deployment.**
 
-| Backend | Use | Deps |
+Without the key, the OSS server runs unchanged (Pro endpoints return 404).
+
+---
+
+## OpenExtract Cloud (private beta)
+
+Don't want to manage a GPU? Use the hosted version:
+
+- `api.openextract.dev`
+- $0.10 / 1k pages
+- EU + US regions
+- Same Textract-compatible API
+- Stripe metered billing
+
+**[Join the private beta →](https://openextract.dev#contact)**
+
+---
+
+## The OpenExtract family
+
+OpenExtract is the flagship of a tightly-scoped family of OSS tools:
+
+| Tool | What it does | When you need it |
 |---|---|---|
-| `mock` | demo, CI, tests (deterministic, zero deps) | none |
-| `tesseract` | CPU text baseline | `tesseract` binary + `pytesseract` |
-| `vlm` | **production** — quantized VLM, forms+tables | any OpenAI-compatible endpoint |
+| **openextract** | drop-in Textract/Azure/Google replacement | always |
+| **[parakh](https://github.com/sarcascoder/parakh)** | field-level extraction eval, CI gate | when you ask "does this actually work on my docs?" |
+| **[taul](https://github.com/sarcascoder/taul)** | reading-order scoring (separate from char accuracy) | when your OCR is "98%" but your RAG returns garbage |
+| **[TurboQuant](https://github.com/sarcascoder/turboquant)** | 5× KV-cache compression on your VLM | when the GPU bill on the OpenExtract backend hurts |
 
-## Benchmark = the go/no-go gate
+All Apache-2.0 or MIT. All built by the same hand.
 
-`bench/benchmark.py` measures local accuracy and cost vs. Textract on your own pages. If local
-forms+tables accuracy is within a few points of Textract, the thesis holds. **Run this first.**
+---
 
-Reproduce the included sample set with `python bench/gen_samples.py`. Verified CPU baseline
-(Tesseract backend, no GPU): **100% line accuracy, 0.17s/page, ~722× cheaper than Textract on
-forms+tables** — but **0% field accuracy**, since Tesseract has no forms understanding. That gap
-is exactly why the `vlm` backend exists.
+## Citation / attribution
 
-Verified VLM run (Qwen3.6-35B-A3B Q8 on a RunPod pod): **100% line + 100% field accuracy** on
-the same 3 synthetic pages. Numbers are honest about being a clean-synthetic dataset — see
-[`bench/RESULTS.md`](bench/RESULTS.md) for caveats and how to reproduce on your own labeled pages.
+If OpenExtract saves you money, the kindest thing is to ⭐ the repo and tell a colleague. If you publish using it, please cite:
 
-## Pro: calibrated confidence + human review (paid)
-
-Cloud OCR hands you an overconfident number per field. The Pro layer makes extraction
-*trustworthy enough to auto-accept*: it routes only low-confidence fields to a human and
-auto-accepts the rest, with optional self-consistency (run a stochastic VLM N times; a
-field's confidence is how often the runs agree). A local `/review` HTML UI lets a human
-correct items in the queue; corrections feed back as few-shot examples for the model.
-
-Pro is a closed-source plugin (`openextract-pro`) that mounts itself on the OSS server
-when installed and licensed — no fork, no patch, no behavior change to the OSS core.
-
-```bash
-pip install openextract                      # OSS core (this repo)
-pip install openextract-pro                  # closed-source Pro extension
-export OPENEXTRACT_LICENSE_KEY=<your-key>    # emailed after purchase
-openextract --backend vlm
-curl localhost:8080/health                   # {"pro": true, ...}
-curl -s localhost:8080/v1/extract-with-confidence \
-  -d '{"Document":{"Bytes":"<base64>"},"threshold":90,"samples":5}'
-# open http://localhost:8080/review for the review UI
+```bibtex
+@misc{tripathi2026openextract,
+  title = {OpenExtract: Self-hosted, API-compatible Document AI},
+  author = {Tripathi, Anupam Deep},
+  year = {2026},
+  howpublished = {\url{https://github.com/sarcascoder/openextract}}
+}
 ```
 
-Without a license, the OSS server runs as if Pro weren't there — Pro endpoints stay 404.
-The Pro plugin contract (`openextract.kernel`, `openextract.pro_loader`) is documented in
-the code; only the Pro implementation is closed-source.
+---
 
-## Roadmap
+## Who's behind this
 
-- ~~Azure Document Intelligence wire compatibility~~ — **shipped**.
-- ~~Google Document AI wire compatibility~~ — **shipped** (third drop-in target).
-- ~~Per-field confidence + self-consistency review layer~~ — **shipped**.
-- ~~S3Object/urlSource input, multi-page PDFs~~ — **shipped**.
-- ~~Local review UI for the Pro queue~~ — **shipped**.
-- Managed hosted endpoint (pay-per-page far below AWS) for teams who don't want to run GPUs.
-- Improved VLM prompt + few-shot injection from saved corrections.
+**Anupam Deep Tripathi** — Founding AI Engineer at Hashteelab, IIT Tirupati '25. Reimplemented ICLR 2026 TurboQuant from scratch. Production OCR / VLM / RAG / edge-AI deployments across legal, manufacturing, automotive, cement.
 
-## License
+If your team is paying meaningful money to Textract / Azure DocInt / Google Doc AI and you want a one-call assessment of the migration, my email is below.
 
-Apache-2.0 © sarcascoder
+📧 **tanupam760@gmail.com** · [LinkedIn](https://www.linkedin.com/in/anupam-tripathi-61567326a/) · [openextract.dev](https://openextract.dev)
