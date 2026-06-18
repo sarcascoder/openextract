@@ -25,10 +25,10 @@ request, same `Block` response structure, your code unchanged.
 
 ### The bill it kills (published mid-2026 pricing)
 
-| Operation | AWS Textract | OpenExtract (local A100) | Cheaper by |
+| Operation | AWS Textract | OpenExtract (single modern GPU) | Cheaper by |
 |---|---|---|---|
-| Plain text (`DetectDocumentText`) | $1.50 / 1k pages | ~$0.09 / 1k pages | ~16× |
-| Forms + Tables (`AnalyzeDocument`) | $65.00 / 1k pages | ~$0.09 / 1k pages | ~700× |
+| Plain text (`DetectDocumentText`), classical OCR | $1.50 / 1k pages | ~$0.09 / 1k pages | ~16× |
+| Forms + Tables (`AnalyzeDocument`), local VLM | $65.00 / 1k pages | ~$1.60 / 1k pages | ~40× |
 | 200k forms-pages / month | ~$13,000 / mo | <$50 / mo + GPU | — |
 
 Plus: no per-cloud egress fees, no per-processor hosting fees, full data residency / HIPAA-friendly
@@ -101,11 +101,10 @@ Convenience REST routes (`/v1/detect-document-text`, `/v1/analyze-document`) for
 forms+tables accuracy is within a few points of Textract, the thesis holds. **Run this first.**
 
 Reproduce the included sample set with `python bench/gen_samples.py`. Verified CPU baseline
-(Tesseract backend, no GPU): **100% line accuracy, 0.17s/page, ~722× cheaper than Textract on
-forms+tables** — but **0% field accuracy**, since Tesseract has no forms understanding. That gap
+(Tesseract backend, no GPU): **100% line accuracy, 0.17s/page, ~16× cheaper than Textract's text API** — but **0% field accuracy**, since the classical OCR backend has no forms understanding. That gap
 is exactly why the `vlm` backend exists.
 
-Verified VLM run (Qwen3.6-35B-A3B Q8 on a RunPod pod): **100% line + 100% field accuracy** on
+Verified VLM run (a quantized open-source VLM on a managed GPU pod): **100% line + 100% field accuracy** on
 the same 3 synthetic pages. Numbers are honest about being a clean-synthetic dataset — see
 [`bench/RESULTS.md`](bench/RESULTS.md) for caveats and how to reproduce on your own labeled pages.
 
