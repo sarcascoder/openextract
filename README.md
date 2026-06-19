@@ -29,7 +29,7 @@ request, same `Block` response structure, your code unchanged.
 |---|---|---|---|
 | Plain text (`DetectDocumentText`), classical OCR | $1.50 / 1k pages | ~$0.09 / 1k pages | ~16× |
 | Forms + Tables (`AnalyzeDocument`), local VLM | $65.00 / 1k pages | ~$1.60 / 1k pages | ~40× |
-| 200k forms-pages / month | ~$13,000 / mo | <$50 / mo + GPU | — |
+| 200k forms-pages / month | ~$13,000 / mo | ~$320 / mo + GPU | ~40× |
 
 Plus: no per-cloud egress fees, no per-processor hosting fees, full data residency / HIPAA-friendly
 air-gap.
